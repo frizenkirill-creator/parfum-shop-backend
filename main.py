@@ -14,11 +14,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Корневой маршрут для проверки
+@app.get("/")
+def home():
+    return {"status": "OK", "message": "Telegram Shop Backend is running!"}
+
 @app.post("/webhook")
 async def telegram_webhook(request: Request):
     body = await request.json()
 
-    # Проверяем, есть ли данные от Web App
     if 'message' in body and 'web_app_data' in body['message']:
         user = body['message']['from']
         chat_id = user['id']
@@ -29,7 +33,6 @@ async def telegram_webhook(request: Request):
             cart = data.get("cart", [])
             total = sum(item["price"] for item in cart)
 
-            # Формируем сообщение
             message = (
                 f"💖 Спасибо за заказ!\n"
                 f"Сумма: {total} ₽\n\n"
@@ -41,10 +44,17 @@ async def telegram_webhook(request: Request):
             for item in cart:
                 message += f"• {item['name']}\n"
 
-            # Отправка сообщения
             bot_token = os.getenv("BOT_TOKEN")
+            if not bot_token:
+                print("❌ BOT_TOKEN не задан!")
+                return {"error": "BOT_TOKEN missing"}
+
+            # ИСПРАВЛЕНО: убран пробел после 'bot'
             url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-            requests.post(url, json={"chat_id": chat_id, "text": message})
+            response = requests.post(url, json={"chat_id": chat_id, "text": message})
+
+            if response.status_code != 200:
+                print("❌ Ошибка Telegram API:", response.text)
 
             print(f"✅ Заказ от @{user.get('username', chat_id)} на {total} ₽")
             return {"ok": True}
